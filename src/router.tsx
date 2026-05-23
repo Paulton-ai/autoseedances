@@ -8,4 +8,11 @@ export const router = createRouter({
   routeTree,
   context: { queryClient },
   scrollRestoration: true,
+  defaultPreloadStaleTime: 0,
 });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
