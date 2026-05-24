@@ -10,7 +10,16 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Sparkles, Mail, Lock, Loader2 } from "lucide-react";
 
-export const Route = createFileRoute("/auth")({ component: AuthPage });
+export const Route = createFileRoute("/auth")({
+  component: AuthPage,
+  head: () => ({
+    meta: [
+      { title: "Sign in — Auto Seedance" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+});
+
 
 function AuthPage() {
   const navigate = useNavigate();

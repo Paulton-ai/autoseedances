@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chrome, Download, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
-import { CHROME_STORE_URL, EDGE_STORE_URL } from "@/routes/index";
 import { trackEvent } from "@/lib/analytics";
+
 
 
 export const Route = createFileRoute("/extension")({

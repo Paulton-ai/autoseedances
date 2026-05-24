@@ -268,11 +268,11 @@ function ExtensionSection() {
                 <div className="text-xs text-muted-foreground">Chrome · Brave · Arc · Opera</div>
               </div>
             </div>
-            <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="block mt-5">
+            <Link to="/extension" className="block mt-5">
               <Button className="w-full btn-gradient text-white border-0">
                 <Download className="size-4 mr-2" /> Install for Chrome
               </Button>
-            </a>
+            </Link>
           </Card>
           <Card className="glass border-0 p-6">
             <div className="flex items-center gap-3">
@@ -282,17 +282,18 @@ function ExtensionSection() {
                 <div className="text-xs text-muted-foreground">Microsoft Edge</div>
               </div>
             </div>
-            <a href={EDGE_STORE_URL} target="_blank" rel="noopener noreferrer" className="block mt-5">
+            <Link to="/extension" className="block mt-5">
               <Button className="w-full btn-gradient text-white border-0">
                 <Download className="size-4 mr-2" /> Install for Microsoft Edge
               </Button>
-            </a>
+            </Link>
           </Card>
         </div>
       </div>
     </section>
   );
 }
+
 
 function PricingTeaser() {
   const features = [
