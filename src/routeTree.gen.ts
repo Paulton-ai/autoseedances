@@ -26,6 +26,7 @@ import { Route as DashboardLibraryRouteImport } from './routes/dashboard.library
 import { Route as DashboardExtensionRouteImport } from './routes/dashboard.extension'
 import { Route as DashboardBillingRouteImport } from './routes/dashboard.billing'
 import { Route as DashboardAdminRouteImport } from './routes/dashboard.admin'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
@@ -112,6 +113,11 @@ const DashboardAdminRoute = DashboardAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => DashboardRoute,
 } as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/workspace': typeof WorkspaceRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/extension': typeof DashboardExtensionRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/workspace': typeof WorkspaceRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/extension': typeof DashboardExtensionRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/workspace': typeof WorkspaceRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/extension': typeof DashboardExtensionRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/workspace'
+    | '/blog/$slug'
     | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/extension'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/workspace'
+    | '/blog/$slug'
     | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/extension'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/workspace'
+    | '/blog/$slug'
     | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/extension'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   WorkspaceRoute: typeof WorkspaceRoute
+  BlogSlugRoute: typeof BlogSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
 }
 
@@ -363,6 +376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAdminRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -400,6 +420,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   WorkspaceRoute: WorkspaceRoute,
+  BlogSlugRoute: BlogSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
 }
 export const routeTree = rootRouteImport
