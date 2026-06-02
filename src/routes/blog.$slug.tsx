@@ -474,29 +474,33 @@ function GiscusComments({ slug }: { slug: string }) {
     const container = document.getElementById("giscus-container");
     if (!container) return;
     container.innerHTML = "";
+    const isDark =
+      document.documentElement.classList.contains("dark") ||
+      window.matchMedia?.("(prefers-color-scheme: dark)").matches;
     const s = document.createElement("script");
     s.src = "https://giscus.app/client.js";
     s.async = true;
     s.crossOrigin = "anonymous";
-    // TODO: replace these with your actual Giscus values from https://giscus.app
-    s.setAttribute("data-repo", "YOUR_GITHUB_USER/YOUR_REPO");
-    s.setAttribute("data-repo-id", "REPLACE_REPO_ID");
-    s.setAttribute("data-category", "Announcements");
-    s.setAttribute("data-category-id", "REPLACE_CATEGORY_ID");
-    s.setAttribute("data-mapping", "specific");
+    // Setup Giscus: go to giscus.app, connect your GitHub repo,
+    // copy your config and replace the values below.
+    s.setAttribute("data-repo", "YOUR_GITHUB_USERNAME/YOUR_REPO_NAME");
+    s.setAttribute("data-repo-id", "YOUR_REPO_ID");
+    s.setAttribute("data-category", "General");
+    s.setAttribute("data-category-id", "YOUR_CATEGORY_ID");
+    s.setAttribute("data-mapping", "pathname");
     s.setAttribute("data-term", slug);
     s.setAttribute("data-strict", "0");
     s.setAttribute("data-reactions-enabled", "1");
     s.setAttribute("data-emit-metadata", "0");
     s.setAttribute("data-input-position", "bottom");
-    s.setAttribute("data-theme", "light");
+    s.setAttribute("data-theme", isDark ? "dark" : "light");
     s.setAttribute("data-lang", "en");
     container.appendChild(s);
   }, [slug]);
   return (
-    <div className="rounded-2xl border border-border p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div id="giscus-container" />
-      <p className="text-xs text-muted-foreground mt-2">
+      <p className="text-xs text-muted-foreground mt-3">
         Comments powered by Giscus. Configure your repo in <code>src/routes/blog.$slug.tsx</code>.
       </p>
     </div>
