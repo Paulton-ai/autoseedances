@@ -17,7 +17,7 @@ import {
   getAllPosts,
   type Post,
 } from "@/lib/posts";
-import { Twitter, Link2, Search, MessageCircle, Check } from "lucide-react";
+import { Twitter, Link2, Search, MessageCircle, Check, ChevronDown, List } from "lucide-react";
 
 const SITE_URL = "https://vizio-automata.lovable.app";
 
@@ -122,6 +122,17 @@ function PostPage() {
   const [activeId, setActiveId] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState("");
+  const [mobileTocOpen, setMobileTocOpen] = useState(false);
+
+  const handleTocClick = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 100;
+    window.scrollTo({ top, behavior: "smooth" });
+    history.replaceState(null, "", `#${id}`);
+    setMobileTocOpen(false);
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -175,11 +186,11 @@ function PostPage() {
 
       <main className="flex-1 pt-28 pb-20">
         <div className="mx-auto max-w-7xl px-4 grid grid-cols-1 lg:grid-cols-[220px_1fr_280px] gap-8">
-          {/* LEFT: TOC */}
+          {/* LEFT: TOC (desktop) */}
           <aside className="hidden lg:block">
             <div className="sticky top-28">
-              <h4 className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-3">
-                On this page
+              <h4 className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+                <List className="size-3.5" /> On this page
               </h4>
               <nav className="space-y-1 text-sm border-l border-border">
                 {headings.length === 0 && (
@@ -189,9 +200,10 @@ function PostPage() {
                   <a
                     key={h.id}
                     href={`#${h.id}`}
+                    onClick={(e) => handleTocClick(e, h.id)}
                     className={`block py-1 border-l-2 -ml-px transition-colors ${
                       activeId === h.id
-                        ? "border-primary text-primary font-medium"
+                        ? "border-primary text-primary font-semibold"
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     } ${h.level === 3 ? "pl-6 text-xs" : "pl-3"}`}
                   >
@@ -202,8 +214,41 @@ function PostPage() {
             </div>
           </aside>
 
+
           {/* CENTER: Article */}
           <article className="min-w-0">
+            {/* Mobile TOC (collapsible) */}
+            {headings.length > 0 && (
+              <div className="lg:hidden mb-4 rounded-xl border border-border bg-card">
+                <button
+                  onClick={() => setMobileTocOpen((o) => !o)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold"
+                  aria-expanded={mobileTocOpen}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <List className="size-4 text-primary" /> Contents
+                  </span>
+                  <ChevronDown className={`size-4 transition-transform ${mobileTocOpen ? "rotate-180" : ""}`} />
+                </button>
+                {mobileTocOpen && (
+                  <nav className="px-4 pb-3 space-y-1 text-sm border-t border-border pt-3">
+                    {headings.map((h) => (
+                      <a
+                        key={h.id}
+                        href={`#${h.id}`}
+                        onClick={(e) => handleTocClick(e, h.id)}
+                        className={`block py-1 ${h.level === 3 ? "pl-4 text-xs" : ""} ${
+                          activeId === h.id ? "text-primary font-semibold" : "text-muted-foreground"
+                        }`}
+                      >
+                        {h.text}
+                      </a>
+                    ))}
+                  </nav>
+                )}
+              </div>
+            )}
+
             <div className="aspect-[16/9] overflow-hidden rounded-2xl bg-muted mb-6">
               <img
                 src={post.coverImage}
@@ -281,9 +326,9 @@ function PostPage() {
                     </blockquote>
                   ),
                   p: ({ children }) => <p className="mb-5 leading-[1.8] text-[17px]">{children}</p>,
-                  h1: ({ children }) => <h1 className="mt-10 mb-4 font-display text-[36px] font-bold">{children}</h1>,
-                  h2: ({ children }) => <h2 className="mt-10 mb-3 font-display text-[28px] font-bold">{children}</h2>,
-                  h3: ({ children }) => <h3 className="mt-8 mb-2 font-display text-[22px] font-bold">{children}</h3>,
+                  h1: ({ children, ...props }) => <h1 {...props} className="mt-10 mb-4 font-display text-[36px] font-bold scroll-mt-28">{children}</h1>,
+                  h2: ({ children, ...props }) => <h2 {...props} className="mt-10 mb-3 font-display text-[28px] font-bold scroll-mt-28">{children}</h2>,
+                  h3: ({ children, ...props }) => <h3 {...props} className="mt-8 mb-2 font-display text-[22px] font-bold scroll-mt-28">{children}</h3>,
                   ul: ({ children }) => <ul className="my-4 ml-6 list-disc space-y-2 leading-[1.8]">{children}</ul>,
                   ol: ({ children }) => <ol className="my-4 ml-6 list-decimal space-y-2 leading-[1.8]">{children}</ol>,
                   code: ({ className, children, ...props }) => {
@@ -363,7 +408,9 @@ function PostPage() {
 
             {/* Giscus comments */}
             <section className="mt-12">
-              <h2 className="font-display text-2xl font-bold mb-4">Comments</h2>
+              <h2 className="font-display text-2xl font-bold mb-4 flex items-center gap-2 border-l-4 border-primary pl-3">
+                <span aria-hidden>💬</span> Comments
+              </h2>
               <GiscusComments slug={post.slug} />
             </section>
           </article>
@@ -427,29 +474,33 @@ function GiscusComments({ slug }: { slug: string }) {
     const container = document.getElementById("giscus-container");
     if (!container) return;
     container.innerHTML = "";
+    const isDark =
+      document.documentElement.classList.contains("dark") ||
+      window.matchMedia?.("(prefers-color-scheme: dark)").matches;
     const s = document.createElement("script");
     s.src = "https://giscus.app/client.js";
     s.async = true;
     s.crossOrigin = "anonymous";
-    // TODO: replace these with your actual Giscus values from https://giscus.app
-    s.setAttribute("data-repo", "YOUR_GITHUB_USER/YOUR_REPO");
-    s.setAttribute("data-repo-id", "REPLACE_REPO_ID");
-    s.setAttribute("data-category", "Announcements");
-    s.setAttribute("data-category-id", "REPLACE_CATEGORY_ID");
-    s.setAttribute("data-mapping", "specific");
+    // Setup Giscus: go to giscus.app, connect your GitHub repo,
+    // copy your config and replace the values below.
+    s.setAttribute("data-repo", "YOUR_GITHUB_USERNAME/YOUR_REPO_NAME");
+    s.setAttribute("data-repo-id", "YOUR_REPO_ID");
+    s.setAttribute("data-category", "General");
+    s.setAttribute("data-category-id", "YOUR_CATEGORY_ID");
+    s.setAttribute("data-mapping", "pathname");
     s.setAttribute("data-term", slug);
     s.setAttribute("data-strict", "0");
     s.setAttribute("data-reactions-enabled", "1");
     s.setAttribute("data-emit-metadata", "0");
     s.setAttribute("data-input-position", "bottom");
-    s.setAttribute("data-theme", "light");
+    s.setAttribute("data-theme", isDark ? "dark" : "light");
     s.setAttribute("data-lang", "en");
     container.appendChild(s);
   }, [slug]);
   return (
-    <div className="rounded-2xl border border-border p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div id="giscus-container" />
-      <p className="text-xs text-muted-foreground mt-2">
+      <p className="text-xs text-muted-foreground mt-3">
         Comments powered by Giscus. Configure your repo in <code>src/routes/blog.$slug.tsx</code>.
       </p>
     </div>
