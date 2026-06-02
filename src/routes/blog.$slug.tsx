@@ -408,7 +408,9 @@ function PostPage() {
 
             {/* Giscus comments */}
             <section className="mt-12">
-              <h2 className="font-display text-2xl font-bold mb-4">Comments</h2>
+              <h2 className="font-display text-2xl font-bold mb-4 flex items-center gap-2 border-l-4 border-primary pl-3">
+                <span aria-hidden>💬</span> Comments
+              </h2>
               <GiscusComments slug={post.slug} />
             </section>
           </article>
