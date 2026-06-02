@@ -175,11 +175,11 @@ function PostPage() {
 
       <main className="flex-1 pt-28 pb-20">
         <div className="mx-auto max-w-7xl px-4 grid grid-cols-1 lg:grid-cols-[220px_1fr_280px] gap-8">
-          {/* LEFT: TOC */}
+          {/* LEFT: TOC (desktop) */}
           <aside className="hidden lg:block">
             <div className="sticky top-28">
-              <h4 className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-3">
-                On this page
+              <h4 className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+                <List className="size-3.5" /> On this page
               </h4>
               <nav className="space-y-1 text-sm border-l border-border">
                 {headings.length === 0 && (
@@ -189,9 +189,10 @@ function PostPage() {
                   <a
                     key={h.id}
                     href={`#${h.id}`}
+                    onClick={(e) => handleTocClick(e, h.id)}
                     className={`block py-1 border-l-2 -ml-px transition-colors ${
                       activeId === h.id
-                        ? "border-primary text-primary font-medium"
+                        ? "border-primary text-primary font-semibold"
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     } ${h.level === 3 ? "pl-6 text-xs" : "pl-3"}`}
                   >
@@ -201,6 +202,7 @@ function PostPage() {
               </nav>
             </div>
           </aside>
+
 
           {/* CENTER: Article */}
           <article className="min-w-0">
