@@ -122,6 +122,17 @@ function PostPage() {
   const [activeId, setActiveId] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState("");
+  const [mobileTocOpen, setMobileTocOpen] = useState(false);
+
+  const handleTocClick = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 100;
+    window.scrollTo({ top, behavior: "smooth" });
+    history.replaceState(null, "", `#${id}`);
+    setMobileTocOpen(false);
+  };
 
   useEffect(() => {
     const onScroll = () => {
