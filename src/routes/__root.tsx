@@ -49,7 +49,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-const SITE_URL = "https://vizio-automata.lovable.app";
+const SITE_URL = "https://autoseedance.site";
 const SITE_TITLE = "Auto Seedance — Bulk AI Images & Videos Generator Automation";
 const SITE_DESC = "Automate Dreamina image & video generation workflows directly from your browser. Queue hundreds of prompts and run bulk AI generation automatically.";
 

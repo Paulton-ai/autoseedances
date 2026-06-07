@@ -6,7 +6,7 @@ import { PostCard } from "@/components/blog/PostCard";
 import { getAllPosts, getTrendingPosts } from "@/lib/posts";
 import { AdSlot } from "@/components/blog/AdSlot";
 
-const SITE_URL = "https://vizio-automata.lovable.app";
+const SITE_URL = "https://autoseedance.site";
 
 export const Route = createFileRoute("/blog/")({
   head: () => ({

@@ -19,7 +19,7 @@ import {
 } from "@/lib/posts";
 import { Twitter, Link2, Search, MessageCircle, Check, ChevronDown, List } from "lucide-react";
 
-const SITE_URL = "https://vizio-automata.lovable.app";
+const SITE_URL = "https://autoseedance.site";
 
 export const Route = createFileRoute("/blog/$slug")({
   loader: ({ params }) => {
