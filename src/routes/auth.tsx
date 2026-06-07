@@ -86,6 +86,20 @@ function AuthPage() {
     setLoading(true);
     setErrorMessage(null);
     setNotice(null);
+    if (!window.location.hostname.endsWith("lovableproject.com") && !window.location.hostname.endsWith("lovable.app")) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        },
+      });
+      if (error) {
+        setErrorMessage(error.message || "Google sign-in failed");
+        toast.error(error.message || "Google sign-in failed");
+        setLoading(false);
+      }
+      return;
+    }
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
     });
