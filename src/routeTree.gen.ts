@@ -27,6 +27,7 @@ import { Route as DashboardExtensionRouteImport } from './routes/dashboard.exten
 import { Route as DashboardBillingRouteImport } from './routes/dashboard.billing'
 import { Route as DashboardAdminRouteImport } from './routes/dashboard.admin'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
@@ -118,10 +119,15 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/extension': typeof ExtensionRoute
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/workspace': typeof WorkspaceRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
@@ -141,13 +148,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/contact': typeof ContactRoute
   '/extension': typeof ExtensionRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/workspace': typeof WorkspaceRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
@@ -161,7 +169,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/extension': typeof ExtensionRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/workspace': typeof WorkspaceRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/workspace'
+    | '/auth/callback'
     | '/blog/$slug'
     | '/dashboard/admin'
     | '/dashboard/billing'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/workspace'
+    | '/auth/callback'
     | '/blog/$slug'
     | '/dashboard/admin'
     | '/dashboard/billing'
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/workspace'
+    | '/auth/callback'
     | '/blog/$slug'
     | '/dashboard/admin'
     | '/dashboard/billing'
@@ -243,7 +255,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   ExtensionRoute: typeof ExtensionRoute
@@ -383,8 +395,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
+
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface DashboardRouteChildren {
   DashboardAdminRoute: typeof DashboardAdminRoute
@@ -412,7 +441,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRouteWithChildren,
   ExtensionRoute: ExtensionRoute,
