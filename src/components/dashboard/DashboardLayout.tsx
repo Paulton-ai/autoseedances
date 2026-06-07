@@ -23,10 +23,11 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const redirectPath = path.startsWith("/dashboard") ? path : "/dashboard";
 
   useEffect(() => {
-    if (!loading && !session) navigate({ to: "/auth", search: { redirect: path } as any, replace: true });
-  }, [loading, session, navigate, path]);
+    if (!loading && !session) navigate({ to: "/auth", search: { redirect: redirectPath } as any, replace: true });
+  }, [loading, session, navigate, redirectPath]);
 
   useEffect(() => {
     if (!session) return;
