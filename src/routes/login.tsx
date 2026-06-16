@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureUserBootstrap, getSafeAuthRedirect } from "@/lib/auth";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,52 +44,34 @@ function LoginPage() {
     setErrorMessage(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (data.user) await ensureUserBootstrap(data.user);
-      toast.success("Welcome back");
-      navigate({ to: redirectTo as any, replace: true });
+      console.log("Attempting login for:", email);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      console.log("Login result:", { data: data, error: error });
+
+      if (error) {
+        console.error("Login error:", error);
+        setErrorMessage("Invalid email or password");
+        toast.error("Invalid email or password");
+        return;
+      }
+
+      if (data.user) {
+        console.log("User logged in:", data.user.id);
+        await ensureUserBootstrap(data.user);
+        toast.success("Welcome back");
+        navigate({ to: redirectTo as any, replace: true });
+      }
     } catch (err: any) {
-      const message = err.message ?? "Something went wrong";
-      setErrorMessage(message);
-      toast.error(message);
+      console.error("Login exception:", err);
+      setErrorMessage("Invalid email or password");
+      toast.error("Invalid email or password");
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleGoogle() {
-    setLoading(true);
-    setErrorMessage(null);
-
-    if (!window.location.hostname.endsWith("lovableproject.com") && !window.location.hostname.endsWith("lovable.app")) {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
-        },
-      });
-      if (error) {
-        setErrorMessage(error.message || "Google sign-in failed");
-        toast.error(error.message || "Google sign-in failed");
-        setLoading(false);
-      }
-      return;
-    }
-
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
-    });
-    if (result.error) {
-      setErrorMessage(result.error.message || "Google sign-in failed");
-      toast.error(result.error.message || "Google sign-in failed");
-      setLoading(false);
-      return;
-    }
-    if (result.redirected) return;
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) await ensureUserBootstrap(data.session.user);
-    navigate({ to: redirectTo as any, replace: true });
   }
 
   return (
@@ -114,15 +95,7 @@ function LoginPage() {
             </Alert>
           )}
 
-          <Button onClick={handleGoogle} disabled={loading} variant="outline" className="w-full mt-6 border-border bg-muted/50">
-            <GoogleIcon /> Continue with Google
-          </Button>
-
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="h-px bg-muted flex-1" /> or <div className="h-px bg-muted flex-1" />
-          </div>
-
-          <form onSubmit={handleEmail} className="space-y-4">
+          <form onSubmit={handleEmail} className="space-y-4 mt-6">
             <div>
               <Label htmlFor="email">Email</Label>
               <div className="relative mt-1">
@@ -182,16 +155,5 @@ function LoginPage() {
         </Link>
       </motion.div>
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg className="size-4 mr-2" viewBox="0 0 24 24">
-      <path fill="#EA4335" d="M12 5c1.6 0 3 .55 4.1 1.6L19 4c-1.9-1.7-4.3-2.7-7-2.7C7 1.3 2.7 4.5 1 9l3.4 2.6C5.3 8.4 8.4 5 12 5z"/>
-      <path fill="#4285F4" d="M23 12.3c0-.8-.1-1.5-.2-2.3H12v4.5h6.2c-.3 1.4-1.1 2.6-2.4 3.4l3.3 2.6c2-1.8 3.1-4.5 3.1-8.2z"/>
-      <path fill="#FBBC05" d="M4.4 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.6.4-2.4L1 7C.4 8.5 0 10.2 0 12s.4 3.5 1 5l3.4-2.6z"/>
-      <path fill="#34A853" d="M12 23c3 0 5.4-1 7.2-2.7L15.8 17.7c-1 .7-2.3 1.1-3.8 1.1-3.6 0-6.7-2.4-7.6-5.7L1 15.7C2.7 19.5 7 23 12 23z"/>
-    </svg>
   );
 }

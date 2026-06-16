@@ -3,19 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-export const supabaseEnvMissing = !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseEnvMissing = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 if (supabaseEnvMissing) {
-  console.error("Authentication is not configured: missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.");
+  console.error("Authentication is not configured: missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.");
 }
 
 export const supabase = createClient<Database>(
   SUPABASE_URL || "https://missing-project.supabase.co",
-  SUPABASE_PUBLISHABLE_KEY || "missing-publishable-key",
+  SUPABASE_ANON_KEY || "missing-anon-key",
   {
   auth: {
     storage: typeof window !== "undefined" ? window.localStorage : undefined,
