@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureUserBootstrap, getSafeAuthRedirect } from "@/lib/auth";
+import { getSafeAuthRedirect } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,19 +84,18 @@ function SignupPage() {
     }
 
     try {
-      console.log("Attempting signup for:", email);
       const { data, error } = await supabase.auth.signUp({
-        email: email,
+        email: email.trim(),
         password: password,
         options: {
-          data: { display_name: name },
+          data: { display_name: name.trim() },
         },
       });
 
-      console.log("Signup result:", { data: data, error: error });
+      console.log("Signup result:", { error, userId: data.user?.id });
 
       if (error) {
-        console.error("Signup error:", error);
+        console.error("Signup error:", error.message);
         setErrorMessage(error.message);
         toast.error(error.message);
         return;
@@ -104,20 +103,6 @@ function SignupPage() {
 
       if (data.user) {
         console.log("User created:", data.user.id);
-        await ensureUserBootstrap(data.user);
-
-        // Send welcome email via edge function
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        await fetch(`${supabaseUrl}/functions/v1/send-welcome-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: data.user.id,
-            email: data.user.email,
-            name: name,
-          }),
-        }).catch(() => {});
-
         toast.success("Account created!");
         navigate({ to: redirectTo as any, replace: true });
       } else {
@@ -126,9 +111,8 @@ function SignupPage() {
       }
     } catch (err: any) {
       console.error("Signup exception:", err);
-      const message = err.message ?? "Something went wrong";
-      setErrorMessage(message);
-      toast.error(message);
+      setErrorMessage(err.message ?? "Something went wrong");
+      toast.error(err.message ?? "Something went wrong");
     } finally {
       setLoading(false);
     }

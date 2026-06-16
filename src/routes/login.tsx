@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureUserBootstrap, getSafeAuthRedirect } from "@/lib/auth";
+import { getSafeAuthRedirect } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,16 +44,15 @@ function LoginPage() {
     setErrorMessage(null);
 
     try {
-      console.log("Attempting login for:", email);
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
+        email: email.trim(),
         password: password,
       });
 
-      console.log("Login result:", { data: data, error: error });
+      console.log("Login result:", { error, userId: data.user?.id });
 
       if (error) {
-        console.error("Login error:", error);
+        console.error("Login error:", error.message);
         setErrorMessage("Invalid email or password");
         toast.error("Invalid email or password");
         return;
@@ -61,7 +60,6 @@ function LoginPage() {
 
       if (data.user) {
         console.log("User logged in:", data.user.id);
-        await ensureUserBootstrap(data.user);
         toast.success("Welcome back");
         navigate({ to: redirectTo as any, replace: true });
       }
