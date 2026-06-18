@@ -74,7 +74,7 @@ function ImageToolPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate({ to: "/login", replace: true }); return; }
+      if (!user) { navigate({ to: "/login", search: { redirect: "/tools/image" } as any, replace: true }); return; }
       setUserId(user.id);
     });
   }, [navigate]);

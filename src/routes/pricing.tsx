@@ -9,67 +9,9 @@ import { Check, ArrowRight, Loader as Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/lib/auth";
 import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 
-const PLANS = [
-  {
-    id: "basic",
-    name: "Basic",
-    monthlyPrice: 14.90,
-    yearlyPrice: 178.80,
-    monthlyCredits: 800,
-    yearlyCredits: 9600,
-    pricePerCredit: 0.019,
-    features: [
-      "AI Image Generation",
-      "AI Video Generation",
-      "Multiple AI models",
-      "Standard generation speed",
-      "No watermark",
-      "Private generation",
-      "Customer support",
-      "Commercial Use License",
-    ],
-  },
-  {
-    id: "standard",
-    name: "Standard",
-    monthlyPrice: 24.90,
-    yearlyPrice: 298.80,
-    monthlyCredits: 1600,
-    yearlyCredits: 19200,
-    pricePerCredit: 0.016,
-    features: [
-      "AI Image Generation",
-      "AI Video Generation",
-      "Multiple AI models",
-      "Priority generation",
-      "No watermark",
-      "Private generation",
-      "Priority customer support",
-      "Commercial Use License",
-    ],
-    popular: true,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    monthlyPrice: 49.90,
-    yearlyPrice: 598.80,
-    monthlyCredits: 4000,
-    yearlyCredits: 48000,
-    pricePerCredit: 0.012,
-    features: [
-      "AI Image Generation",
-      "AI Video Generation",
-      "Multiple AI models",
-      "Fastest generation speed",
-      "No watermark",
-      "Private generation",
-      "Expert team support",
-      "Commercial Use License",
-    ],
-  },
-];
+type Plan = Tables<"plans">;
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -85,20 +27,39 @@ function PricingPage() {
   const { user } = useSession();
   const [yearly, setYearly] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      supabase.from("subscriptions").select("plan").eq("user_id", user.id).maybeSingle().then(({ data }) => {
-        if (data) setCurrentPlan(data.plan);
+    supabase.from("plans")
+      .select("*")
+      .eq("is_active", true)
+      .neq("name", "Free")
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => {
+        setPlans((data as Plan[]) ?? []);
+        setLoading(false);
       });
-    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("subscriptions").select("plan").eq("user_id", user.id).maybeSingle()
+      .then(({ data }) => { if (data) setCurrentPlan(data.plan); });
   }, [user]);
 
-  const handleSubscribe = (planId: string) => {
-    toast.info(`${planId.charAt(0).toUpperCase() + planId.slice(1)} plan checkout`, {
+  const handleSubscribe = (planName: string) => {
+    if (!user) {
+      toast.info("Please sign in to subscribe", { description: "Create an account or log in to get started." });
+      return;
+    }
+    toast.info(`${planName} plan checkout`, {
       description: "Payment integration coming soon. Contact support to upgrade.",
     });
   };
+
+  // Map plan slug names to "popular" display
+  const popularSlug = "Pro"; // "Pro" plan (Standard display) is popular
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,78 +90,87 @@ function PricingPage() {
             </div>
           </div>
 
-          <div className="mt-12 grid md:grid-cols-3 gap-6">
-            {PLANS.map((plan) => {
-              const price = yearly ? plan.yearlyPrice : plan.monthlyPrice;
-              const credits = yearly ? plan.yearlyCredits : plan.monthlyCredits;
-              const isCurrent = currentPlan === plan.id;
+          {loading ? (
+            <div className="mt-20 flex justify-center">
+              <Loader2 className="size-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="mt-12 grid md:grid-cols-3 gap-6">
+              {plans.map((plan) => {
+                const priceMonthly = Number(plan.price_monthly ?? plan.price_monthly_cents / 100);
+                const priceYearly = Number(plan.price_yearly ?? plan.price_yearly_cents / 100);
+                const price = yearly ? priceYearly : priceMonthly;
+                const monthlyCredits = plan.monthly_credits;
+                const yearlyCredits = monthlyCredits * 12;
+                const credits = yearly ? yearlyCredits : monthlyCredits;
+                const pricePerCredit = price > 0 ? price / credits : 0;
+                const isPopular = plan.name === popularSlug;
+                const isCurrent = currentPlan === plan.name.toLowerCase();
+                const displayName = plan.display_name || plan.name;
 
-              return (
-                <Card
-                  key={plan.id}
-                  className={`relative glass border-0 p-6 flex flex-col ${plan.popular ? "glow-purple ring-2 ring-primary/50" : "border border-border"}`}
-                >
-                  {plan.popular && (
-                    <Badge className="absolute -top-3 left-6 bg-primary text-primary-foreground border-0">Most Popular</Badge>
-                  )}
-
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-display font-semibold text-xl">{plan.name}</h3>
-                    <Badge className="bg-green-500/20 text-green-400 border-green-500/30 border">
-                      ${plan.pricePerCredit.toFixed(3)}/credit
-                    </Badge>
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="text-4xl font-display font-bold">
-                      ${price.toFixed(2)}
-                      <span className="text-base font-normal text-muted-foreground">/{yearly ? "year" : "month"}</span>
-                    </div>
-                    {yearly && (
-                      <div className="text-sm text-muted-foreground mt-1">
-                        ${plan.monthlyPrice.toFixed(2)}/month billed yearly
-                      </div>
+                return (
+                  <Card
+                    key={plan.id}
+                    className={`relative glass border-0 p-6 flex flex-col ${isPopular ? "glow-purple ring-2 ring-primary/50" : "border border-border"}`}
+                  >
+                    {isPopular && (
+                      <Badge className="absolute -top-3 left-6 bg-primary text-primary-foreground border-0">Most Popular</Badge>
                     )}
-                  </div>
 
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-                    <Badge variant="outline" className="border-primary/30 text-primary">
-                      {credits.toLocaleString()} credits/{yearly ? "year" : "month"}
-                    </Badge>
-                  </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-display font-semibold text-xl">{displayName}</h3>
+                      {pricePerCredit > 0 && (
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 border">
+                          ${pricePerCredit.toFixed(3)}/credit
+                        </Badge>
+                      )}
+                    </div>
 
-                  <ul className="space-y-3 text-sm flex-1 mb-6">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex gap-2">
-                        <Check className="size-4 text-green-400 shrink-0 mt-0.5" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
+                    <div className="mb-4">
+                      <div className="text-4xl font-display font-bold">
+                        ${price.toFixed(2)}
+                        <span className="text-base font-normal text-muted-foreground">/{yearly ? "year" : "month"}</span>
+                      </div>
+                      {yearly && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                          ${priceMonthly.toFixed(2)}/month billed yearly
+                        </div>
+                      )}
+                    </div>
 
-                  {isCurrent ? (
-                    <Button className="w-full" variant="outline" disabled>
-                      Current plan
-                    </Button>
-                  ) : plan.id === "free" ? (
-                    <Link to="/signup" className="block">
-                      <Button className="w-full" variant="outline">
-                        Get started <ArrowRight className="ml-1 size-4" />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+                      <Badge variant="outline" className="border-primary/30 text-primary">
+                        {credits.toLocaleString()} credits/{yearly ? "year" : "month"}
+                      </Badge>
+                    </div>
+
+                    <ul className="space-y-3 text-sm flex-1 mb-6">
+                      {((plan.features as string[]) || []).map((f) => (
+                        <li key={f} className="flex gap-2">
+                          <Check className="size-4 text-green-400 shrink-0 mt-0.5" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+
+                    {isCurrent ? (
+                      <Button className="w-full" variant="outline" disabled>
+                        Current plan
                       </Button>
-                    </Link>
-                  ) : (
-                    <Button
-                      className={`w-full ${plan.popular ? "btn-gradient text-white border-0" : ""}`}
-                      variant={plan.popular ? "default" : "outline"}
-                      onClick={() => handleSubscribe(plan.id)}
-                    >
-                      Subscribe
-                    </Button>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
+                    ) : (
+                      <Button
+                        className={`w-full ${isPopular ? "btn-gradient text-white border-0" : ""}`}
+                        variant={isPopular ? "default" : "outline"}
+                        onClick={() => handleSubscribe(displayName)}
+                      >
+                        Subscribe <ArrowRight className="ml-1 size-4" />
+                      </Button>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-12 text-center">
             <div className="text-sm text-muted-foreground">

@@ -126,9 +126,12 @@ export type Database = {
         Row: {
           id: string
           name: string
+          display_name: string | null
           monthly_credits: number
           price_monthly_cents: number
           price_yearly_cents: number
+          price_monthly: number | null
+          price_yearly: number | null
           features: string[]
           is_active: boolean
           sort_order: number
@@ -136,6 +139,7 @@ export type Database = {
         Insert: {
           id: string
           name: string
+          display_name?: string | null
           monthly_credits: number
           price_monthly_cents?: number
           price_yearly_cents?: number
@@ -146,12 +150,79 @@ export type Database = {
         Update: {
           id?: string
           name?: string
+          display_name?: string | null
           monthly_credits?: number
           price_monthly_cents?: number
           price_yearly_cents?: number
           features?: string[]
           is_active?: boolean
           sort_order?: number
+        }
+        Relationships: []
+      }
+      email_campaigns: {
+        Row: {
+          id: string
+          subject: string
+          body_html: string
+          recipient_type: string
+          recipient_count: number
+          sent_by: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          subject: string
+          body_html: string
+          recipient_type: string
+          recipient_count?: number
+          sent_by?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          subject?: string
+          body_html?: string
+          recipient_type?: string
+          recipient_count?: number
+          sent_by?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          id: number
+          site_name: string
+          support_email: string
+          free_signup_credits: number
+          max_images_per_day: number
+          max_videos_per_day: number
+          maintenance_mode: boolean
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          site_name?: string
+          support_email?: string
+          free_signup_credits?: number
+          max_images_per_day?: number
+          max_videos_per_day?: number
+          maintenance_mode?: boolean
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          site_name?: string
+          support_email?: string
+          free_signup_credits?: number
+          max_images_per_day?: number
+          max_videos_per_day?: number
+          maintenance_mode?: boolean
+          updated_at?: string
         }
         Relationships: []
       }
