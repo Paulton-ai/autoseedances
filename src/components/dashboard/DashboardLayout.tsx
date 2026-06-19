@@ -70,25 +70,7 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
       })
       .catch(() => {});
 
-    const channel = supabase
-      .channel("wallet-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "credit_wallets",
-          filter: `user_id=eq.${session.user.id}`,
-        },
-        (payload) => {
-          if (payload.new) setWallet(payload.new as Tables<"credit_wallets">);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // One-time fetch only — realtime removed to prevent "cannot add postgres_changes callbacks after subscribe" crash
   }, [session]);
 
   if (loading || !session) {

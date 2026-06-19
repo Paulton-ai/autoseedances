@@ -31,17 +31,6 @@ export function ToolNavbar({ title }: ToolNavbarProps) {
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => setBalance(data?.balance ?? 0));
-
-    const channel = supabase
-      .channel("wallet-balance")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "credit_wallets", filter: `user_id=eq.${user.id}` },
-        (payload) => setBalance((payload.new as any).balance)
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
   }, [user]);
 
   const initials = user?.email?.[0]?.toUpperCase() || "U";

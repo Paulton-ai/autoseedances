@@ -49,19 +49,6 @@ function HistoryPage() {
 
   useEffect(() => {
     fetchGenerations();
-
-    const channel = supabase
-      .channel("generations-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "generations", filter: `user_id=eq.${user?.id}` },
-        () => fetchGenerations()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user, filter]);
 
   async function toggleFavorite(id: string, current: boolean) {

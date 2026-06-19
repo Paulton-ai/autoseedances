@@ -55,26 +55,6 @@ function CreditsPage() {
     }
 
     fetchData();
-
-    const channel = supabase
-      .channel("credits-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "credit_wallets", filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          if (payload.new) setWallet(payload.new as Wallet);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "credit_ledger", filter: `user_id=eq.${user.id}` },
-        () => fetchData()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user]);
 
   const usedCredits = wallet ? wallet.monthly_grant - wallet.balance : 0;

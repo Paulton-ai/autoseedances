@@ -99,8 +99,7 @@ function ImageToolPage() {
   useEffect(() => {
     if (!userId) return;
     fetchGenerations(userId);
-    const channel = supabase.channel("image-gens").on("postgres_changes", { event: "UPDATE", schema: "public", table: "generations", filter: `user_id=eq.${userId}` }, () => fetchGenerations(userId)).subscribe();
-    return () => { supabase.removeChannel(channel); if (pollingRef.current) clearInterval(pollingRef.current); };
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [userId]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
