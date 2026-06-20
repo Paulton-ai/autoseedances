@@ -126,7 +126,7 @@ function Admin() {
 
   // Settings
   const [settings, setSettings] = useState<SiteSettings>({
-    site_name: "Auto Seedance", support_email: "support@autoseedance.site",
+    site_name: "Auto Seedance", support_email: "paultonai26@gmail.com",
     free_signup_credits: 50, max_images_per_day: 20, max_videos_per_day: 5, maintenance_mode: false,
   });
   const [savingSettings, setSavingSettings] = useState(false);
@@ -276,19 +276,22 @@ function Admin() {
     if (!editingPlan) return;
     const priceMonthly = editingPlan._monthly ?? Number(editingPlan.price_monthly ?? 0);
     const priceYearly = editingPlan._yearly ?? Number(editingPlan.price_yearly ?? 0);
-    const [res] = await Promise.allSettled([
-      supabase.from("plans").update({
-        display_name: editingPlan.display_name ?? editingPlan.name,
-        price_monthly_cents: Math.round(priceMonthly * 100),
-        price_yearly_cents: Math.round(priceYearly * 100),
-        monthly_credits: editingPlan.monthly_credits,
-        features: editingPlan.features,
-        is_active: editingPlan.is_active,
-      }).eq("id", editingPlan.id),
-    ]);
-    if (res.status === "rejected") { toast.error("Failed to save plan"); return; }
-    toast.success("Plan saved — pricing page updated immediately");
-    setPlanDialog(false); setEditingPlan(null);
+    const { error } = await supabase.from("plans").update({
+      display_name: editingPlan.display_name ?? editingPlan.name,
+      price_monthly: priceMonthly,
+      price_yearly: priceYearly,
+      monthly_credits: editingPlan.monthly_credits,
+      features: editingPlan.features,
+      is_active: editingPlan.is_active,
+    }).eq("id", editingPlan.id);
+    if (error) {
+      console.error("Save plan error:", error);
+      toast.error("Failed to save plan: " + error.message);
+      return;
+    }
+    toast.success("Plan saved!");
+    setPlanDialog(false);
+    setEditingPlan(null);
     loadPlans();
   }
 

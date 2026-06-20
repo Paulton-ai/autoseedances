@@ -34,13 +34,13 @@ function ContactPage() {
               <Mail className="size-6 text-primary" />
               <h2 className="font-display font-semibold mt-3">Email support</h2>
               <p className="text-sm text-muted-foreground mt-1">For account questions, billing, or general help.</p>
-              <a href="mailto:support@autoseedance.app" className="text-primary text-sm hover:underline mt-3 inline-block">support@autoseedance.app</a>
+              <a href="mailto:paultonai26@gmail.com" className="text-primary text-sm hover:underline mt-3 inline-block">paultonai26@gmail.com</a>
             </Card>
             <Card className="glass border-0 p-6">
               <MessageSquare className="size-6 text-blue-400" />
               <h2 className="font-display font-semibold mt-3">Feedback &amp; feature requests</h2>
               <p className="text-sm text-muted-foreground mt-1">Tell us what you'd love to see next in Auto Seedance.</p>
-              <a href="mailto:hello@autoseedance.app" className="text-blue-400 text-sm hover:underline mt-3 inline-block">hello@autoseedance.app</a>
+              <a href="mailto:paultonai26@gmail.com" className="text-blue-400 text-sm hover:underline mt-3 inline-block">paultonai26@gmail.com</a>
             </Card>
           </div>
 

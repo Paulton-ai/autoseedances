@@ -66,6 +66,7 @@ function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <Hero />
+      <VideoBanner />
       <Features />
       <StatsSection />
       <AIToolsSection />
@@ -353,6 +354,21 @@ function FAQ() {
           ))}
         </Accordion>
       </div>
+    </section>
+  );
+}
+
+function VideoBanner() {
+  return (
+    <section className="w-full max-w-5xl mx-auto px-4 my-12 rounded-2xl overflow-hidden shadow-2xl">
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="w-full rounded-2xl"
+        src="https://vcercajwtbjbvjhzivjb.supabase.co/storage/v1/object/sign/uploads/Untitled%20design.mp4?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZTVlNzIxOC0yZGFlLTRhNTEtODRkNS0yN2JjNGI0MzQ5MTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJ1cGxvYWRzL1VudGl0bGVkIGRlc2lnbi5tcDQiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzgxOTM1Mzg1LCJleHAiOjIwOTcyOTUzODV9.wKr8TxfhrTfRlUzrE2FAI6K9bmmz-5I-ut6i5qVXWtg"
+      />
     </section>
   );
 }
