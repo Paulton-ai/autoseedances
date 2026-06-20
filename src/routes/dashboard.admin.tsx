@@ -280,6 +280,8 @@ function Admin() {
       display_name: editingPlan.display_name ?? editingPlan.name,
       price_monthly: priceMonthly,
       price_yearly: priceYearly,
+      price_monthly_cents: Math.round(priceMonthly * 100),
+      price_yearly_cents: Math.round(priceYearly * 100),
       monthly_credits: editingPlan.monthly_credits,
       features: editingPlan.features,
       is_active: editingPlan.is_active,
