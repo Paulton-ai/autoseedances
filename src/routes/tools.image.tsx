@@ -78,11 +78,14 @@ function ImageToolPage() {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const generateStartRef = useRef<number>(0);
+  // Store the request_id so we can update the pending generation record later
+  const requestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Clear stale generation state on mount - never auto-resume
     setIsGenerating(false);
     setGeneratedImages([]);
+    requestIdRef.current = null;
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
   }, []);
 
@@ -90,7 +93,6 @@ function ImageToolPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { navigate({ to: "/login", search: { redirect: "/tools/image" } as any, replace: true }); return; }
       setUserId(user.id);
-      // Check admin
       supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
         .then(({ data }) => setIsAdmin(!!data));
     });
@@ -159,22 +161,39 @@ function ImageToolPage() {
       });
       if (genError || !genData?.success) throw new Error(genData?.error || genError?.message || "Generation failed");
       const { request_id, status_url } = genData;
+      requestIdRef.current = request_id;
       if (pollingRef.current) clearInterval(pollingRef.current);
       pollingRef.current = setInterval(async () => {
         try {
           const { data: pollData } = await supabase.functions.invoke("poll-generation", { body: { request_id, status_url } });
-          if (pollData?.status === "COMPLETED") {
-            const imgs = pollData.result?.images || pollData.result?.data?.images || pollData.result?.output?.images || pollData.result?.video || [];
+          // NOTE: poll-generation returns "completed" (lowercase), not "COMPLETED"
+          if (pollData?.status === "completed") {
+            const imgs = pollData.image_urls || pollData.result?.images || pollData.result?.data?.images || pollData.result?.output?.images || pollData.result?.video || [];
             const flatImgs = (Array.isArray(imgs) ? imgs : []).filter(Boolean);
             if (flatImgs.length > 0) {
               setGeneratedImages(flatImgs);
               setIsGenerating(false);
               if (pollingRef.current) clearInterval(pollingRef.current);
+              // Update the pending generation record to done with the result URL
+              if (requestIdRef.current && userId) {
+                await supabase.from("generations")
+                  .update({ status: "done", result_url: flatImgs[0], thumbnail_url: flatImgs[0] })
+                  .eq("external_id", requestIdRef.current)
+                  .eq("user_id", userId);
+              }
               fetchGenerations(userId);
             }
-          } else if (pollData?.status === "FAILED") {
+          } else if (pollData?.status === "failed") {
             setIsGenerating(false);
             if (pollingRef.current) clearInterval(pollingRef.current);
+            // Update the pending generation record to failed
+            if (requestIdRef.current && userId) {
+              await supabase.from("generations")
+                .update({ status: "failed", error: pollData.error || "Generation failed" })
+                .eq("external_id", requestIdRef.current)
+                .eq("user_id", userId);
+            }
+            fetchGenerations(userId);
             toast.error(pollData.error || "Generation failed");
           }
         } catch { /* continue polling */ }
