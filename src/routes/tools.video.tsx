@@ -20,9 +20,8 @@ export const Route = createFileRoute("/tools/video")({
   component: VideoToolPage,
   head: () => ({
     meta: [
-      { title: "AI Video Generator - Text to Video Free | Auto Seedance" },
-      { name: "description", content: "Free AI video generator powered by Seedance 2.0. Create cinematic videos with audio from text prompts. 720p and 1080p. Reference to video. 30 credits per video." },
-      { name: "keywords", content: "AI video generator, text to video, free AI video, cinematic video AI, Seedance AI, video from text, AI video maker" },
+      { title: "Video Generation — Auto Seedance AI" },
+      { name: "description", content: "Generate AI videos with text prompts. 30 credits per video." },
     ],
   }),
 });
@@ -58,7 +57,6 @@ function VideoToolPage() {
   const [referenceAudioUrls, setReferenceAudioUrls] = useState<string[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const requestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Clear stale generation state on mount - never auto-resume
@@ -145,9 +143,8 @@ function VideoToolPage() {
       if (data?.error) throw new Error(data.error);
 
       // Use the status_url and response_url returned by fal.ai
-      const { status_url, response_url, request_id } = data;
-      requestIdRef.current = request_id;
-      console.log("[video] Got request_id:", request_id, "status_url:", status_url, "response_url:", response_url);
+      const { status_url, response_url } = data;
+      console.log("[video] Got status_url:", status_url, "response_url:", response_url);
       let pollCount = 0;
 
       pollingRef.current = setInterval(async () => {
@@ -162,10 +159,10 @@ function VideoToolPage() {
         }
         try {
           const { data: pollData, error: pollError } = await supabase.functions.invoke("poll-generation", {
-            body: { request_id, status_url, response_url },
+            body: { status_url, response_url },
           });
           if (pollError) { console.error("[video] Poll error:", pollError); return; }
-          console.log("[video] Poll:", pollCount, pollData?.status, "urls:", pollData?.video_url);
+          console.log("[video] Poll:", pollCount, pollData?.status);
           if (pollData?.status === "completed" && pollData?.video_url) {
             if (pollingRef.current) clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -173,17 +170,11 @@ function VideoToolPage() {
             setVideoUrl(pollData.video_url);
             setIsGenerating(false);
 
-            // Update the pending generation record to done
-            if (requestIdRef.current && userId) {
-              await supabase.from("generations")
-                .update({
-                  status: "done",
-                  result_url: pollData.video_url,
-                  thumbnail_url: pollData.video_url,
-                })
-                .eq("external_id", requestIdRef.current)
-                .eq("user_id", userId);
-            }
+            await supabase.from("generations").insert({
+              user_id: userId, tool_type: "video", prompt: prompt.trim(),
+              settings: { duration, resolution, aspect_ratio: aspectRatio, generate_audio: generateAudio },
+              status: "done", result_url: pollData.video_url, thumbnail_url: pollData.video_url, credits_used: CREDITS_PER_VIDEO,
+            });
             fetchGenerations(userId);
             toast.success("Your video is ready!");
           }
@@ -191,14 +182,6 @@ function VideoToolPage() {
             if (pollingRef.current) clearInterval(pollingRef.current);
             pollingRef.current = null;
             setIsGenerating(false);
-            // Update the pending generation record to failed
-            if (requestIdRef.current && userId) {
-              await supabase.from("generations")
-                .update({ status: "failed", error: pollData?.error || "Video generation failed" })
-                .eq("external_id", requestIdRef.current)
-                .eq("user_id", userId);
-            }
-            fetchGenerations(userId);
             toast.error(pollData?.error || "Video generation failed");
           }
         } catch (e) {

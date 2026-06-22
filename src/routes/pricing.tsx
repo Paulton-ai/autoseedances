@@ -17,8 +17,8 @@ export const Route = createFileRoute("/pricing")({
   component: PricingPage,
   head: () => ({
     meta: [
-      { title: "AI Generator Pricing Plans | Auto Seedance - Starting $14.90/mo" },
-      { name: "description", content: "Affordable AI image and video generation pricing. Free tier with 50 credits monthly. Starter, Pro, and Business plans. No subscription lock-in." },
+      { title: "Pricing — Auto Seedance AI" },
+      { name: "description", content: "Simple credit-based pricing for AI image and video generation." },
     ],
   }),
 });

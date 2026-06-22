@@ -16,7 +16,7 @@ export const Route = createFileRoute("/signup")({
   component: SignupPage,
   head: () => ({
     meta: [
-      { title: "Sign Up Free - 50 Free Credits | Auto Seedance" },
+      { title: "Sign Up — Auto Seedance" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

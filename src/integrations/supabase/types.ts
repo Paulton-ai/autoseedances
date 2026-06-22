@@ -122,45 +122,6 @@ export type Database = {
         }
         Relationships: []
       }
-      credits_transactions: {
-        Row: {
-          id: string
-          user_id: string
-          transaction_type: string
-          reason: string
-          amount: number
-          balance_before: number
-          balance_after: number
-          reference_id: string | null
-          metadata: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          transaction_type: string
-          reason: string
-          amount: number
-          balance_before: number
-          balance_after: number
-          reference_id?: string | null
-          metadata?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          transaction_type?: string
-          reason?: string
-          amount?: number
-          balance_before?: number
-          balance_after?: number
-          reference_id?: string | null
-          metadata?: Json | null
-          created_at?: string
-        }
-        Relationships: []
-      }
       plans: {
         Row: {
           id: string

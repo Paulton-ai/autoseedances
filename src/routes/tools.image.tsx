@@ -22,9 +22,8 @@ export const Route = createFileRoute("/tools/image")({
   component: ImageToolPage,
   head: () => ({
     meta: [
-      { title: "AI Image Generator - Create 4K Art Free | Auto Seedance" },
-      { name: "description", content: "Free AI image generator powered by Seedream 4.5. Create stunning 4K images from text prompts. Multiple styles: realistic, anime, illustration, oil painting. 5 credits per image." },
-      { name: "keywords", content: "AI image generator, free AI art, text to image, 4K AI images, Seedream AI, AI image maker, photorealistic AI art" },
+      { title: "Image Generation — Auto Seedance AI" },
+      { name: "description", content: "Generate AI images with text prompts. 5 credits per image." },
     ],
   }),
 });
@@ -78,14 +77,11 @@ function ImageToolPage() {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const generateStartRef = useRef<number>(0);
-  // Store the request_id so we can update the pending generation record later
-  const requestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Clear stale generation state on mount - never auto-resume
     setIsGenerating(false);
     setGeneratedImages([]);
-    requestIdRef.current = null;
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
   }, []);
 
@@ -93,6 +89,7 @@ function ImageToolPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { navigate({ to: "/login", search: { redirect: "/tools/image" } as any, replace: true }); return; }
       setUserId(user.id);
+      // Check admin
       supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
         .then(({ data }) => setIsAdmin(!!data));
     });
@@ -150,254 +147,218 @@ function ImageToolPage() {
     generateStartRef.current = Date.now();
     setGeneratedImages([]);
     try {
-      const { data: genData, error: genError } = await supabase.functions.invoke("generate-image", {
+      let creditResult: any = null;
+      if (!isAdmin) {
+        const { data, error: creditError } = await supabase.rpc("consume_credits", { _tool: "image", _amount: CREDITS_PER_IMAGE });
+        if (creditError || !data?.success) throw new Error(data?.error || creditError?.message || "Failed to deduct credits");
+        creditResult = data;
+      } else {
+        creditResult = { success: true, is_admin: true };
+      }
+
+      const hasRef = activeTab === "reference" && referenceImages.length > 0;
+      const { data, error } = await supabase.functions.invoke("generate-image", {
         body: {
           prompt: prompt.trim(),
-          image_size: selectedSize,
-          style: selectedStyle,
+          image_size: selectedSize || "auto_2K",
+          style: selectedStyle || "realistic",
           num_images: 1,
-          reference_images: referenceImages.length > 0 ? referenceImages : undefined,
+          reference_images: hasRef ? referenceImages : [],
         },
       });
-      if (genError || !genData?.success) throw new Error(genData?.error || genError?.message || "Generation failed");
-      const { request_id, status_url } = genData;
-      requestIdRef.current = request_id;
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      // Use the status_url and response_url returned by fal.ai
+      const { status_url, response_url } = data;
+      console.log("[image] Got status_url:", status_url, "response_url:", response_url);
+      let pollCount = 0;
+
       pollingRef.current = setInterval(async () => {
+        pollCount++;
+        if (pollCount > 60) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          setIsGenerating(false);
+          toast.error("Generation timed out — please try again");
+          return;
+        }
         try {
-          const { data: pollData } = await supabase.functions.invoke("poll-generation", { body: { request_id, status_url } });
-          // NOTE: poll-generation returns "completed" (lowercase), not "COMPLETED"
+          const { data: pollData, error: pollError } = await supabase.functions.invoke("poll-generation", {
+            body: { status_url, response_url },
+          });
+          if (pollError) { console.error("[image] Poll error:", pollError); return; }
+          console.log("[image] Poll:", pollCount, pollData?.status);
           if (pollData?.status === "completed") {
-            const imgs = pollData.image_urls || pollData.result?.images || pollData.result?.data?.images || pollData.result?.output?.images || pollData.result?.video || [];
-            const flatImgs = (Array.isArray(imgs) ? imgs : []).filter(Boolean);
-            if (flatImgs.length > 0) {
-              setGeneratedImages(flatImgs);
-              setIsGenerating(false);
-              if (pollingRef.current) clearInterval(pollingRef.current);
-              // Update the pending generation record to done with the result URL
-              if (requestIdRef.current && userId) {
-                await supabase.from("generations")
-                  .update({ status: "done", result_url: flatImgs[0], thumbnail_url: flatImgs[0] })
-                  .eq("external_id", requestIdRef.current)
-                  .eq("user_id", userId);
-              }
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            if (pollData.image_urls?.length > 0) {
+              setGeneratedImages(pollData.image_urls);
+              const primaryUrl = pollData.image_urls[0];
+              await supabase.from("generations").insert({
+                user_id: userId, tool_type: "image", prompt: prompt.trim(),
+                settings: { image_size: selectedSize, style: selectedStyle, has_reference_images: hasRef },
+                status: "done", result_url: primaryUrl, thumbnail_url: primaryUrl, credits_used: CREDITS_PER_IMAGE,
+              });
               fetchGenerations(userId);
             }
-          } else if (pollData?.status === "failed") {
             setIsGenerating(false);
-            if (pollingRef.current) clearInterval(pollingRef.current);
-            // Update the pending generation record to failed
-            if (requestIdRef.current && userId) {
-              await supabase.from("generations")
-                .update({ status: "failed", error: pollData.error || "Generation failed" })
-                .eq("external_id", requestIdRef.current)
-                .eq("user_id", userId);
-            }
-            fetchGenerations(userId);
-            toast.error(pollData.error || "Generation failed");
           }
-        } catch { /* continue polling */ }
-      }, 5000);
-      setTimeout(() => {
-        if (pollingRef.current) clearInterval(pollingRef.current);
-        setIsGenerating(false);
-        toast.error("Generation timed out. Check history for results.");
-      }, 600000);
-    } catch (err: any) {
+          if (pollData?.status === "failed") {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            setIsGenerating(false);
+            toast.error(pollData?.error || "Generation failed — please try again");
+          }
+        } catch (e) {
+          console.error("[image] Poll error:", e);
+        }
+      }, 4000);
+    } catch (e: unknown) {
       setIsGenerating(false);
-      toast.error(err.message || "Generation failed");
+      toast.error(e instanceof Error ? e.message : "Generation failed");
     }
   };
 
-  const saveFavorite = async (id: string) => {
-    const { data } = await supabase.from("generations").select("is_favorite").eq("id", id).maybeSingle();
-    const next = !((data as any)?.is_favorite ?? false);
-    await supabase.from("generations").update({ is_favorite: next }).eq("id", id);
-    setGenerations((prev) => prev.map((g) => g.id === id ? { ...g, is_favorite: next } : g));
-  };
-  const deleteGen = async (id: string) => {
+  async function toggleFavorite(id: string, current: boolean) {
+    await supabase.from("generations").update({ is_favorite: !current }).eq("id", id);
+    if (userId) fetchGenerations(userId);
+  }
+
+  async function deleteGeneration(id: string) {
     await supabase.from("generations").delete().eq("id", id);
-    setGenerations((prev) => prev.filter((g) => g.id !== id));
-    toast.success("Deleted");
-  };
-  const downloadGen = async (url: string) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.download = "generated-image.png";
-    a.click();
-  };
-  const copyPrompt = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Prompt copied");
-  };
+    if (userId) fetchGenerations(userId);
+  }
+
+  if (!userId) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <ToolNavbar title="Image Generator" />
-      <main className="flex-1 py-6 px-4 md:px-6 max-w-5xl mx-auto w-full">
-        <div className="flex items-center gap-2 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/dashboard" })}>
-            <ArrowLeft className="size-4" />
-          </Button>
-          <h1 className="text-2xl font-display font-bold">AI Image Generator</h1>
-          <Badge variant="outline" className="ml-auto">Seedream 4.5</Badge>
-        </div>
-        <div className="grid lg:grid-cols-[1fr,320px] gap-6">
-          <div className="space-y-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="glass border-0">
-                <TabsTrigger value="text">Text to Image</TabsTrigger>
-                <TabsTrigger value="reference">Reference</TabsTrigger>
-              </TabsList>
-              <TabsContent value="text">
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Prompt</Label>
-                    <Textarea
-                      value={prompt}
-                      onChange={(e) => { if (e.target.value.length <= MAX_PROMPT_LENGTH) setPrompt(e.target.value); }}
-                      placeholder="Describe the image you want to create..."
-                      className="min-h-[120px] glass border-0 mt-2 resize-none"
-                    />
-                    <div className="text-xs text-muted-foreground mt-1 text-right">{prompt.length}/{MAX_PROMPT_LENGTH}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm text-muted-foreground">Style</Label>
-                      <Select value={selectedStyle} onValueChange={setSelectedStyle}>
-                        <SelectTrigger className="glass border-0 mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {STYLES.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-muted-foreground">Size</Label>
-                      <Select value={selectedSize} onValueChange={setSelectedSize}>
-                        <SelectTrigger className="glass border-0 mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {IMAGE_SIZES.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="reference">
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Prompt</Label>
-                    <Textarea
-                      value={prompt}
-                      onChange={(e) => { if (e.target.value.length <= MAX_PROMPT_LENGTH) setPrompt(e.target.value); }}
-                      placeholder="Describe the image you want to create..."
-                      className="min-h-[80px] glass border-0 mt-2 resize-none"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Reference Images</Label>
-                    <div className="mt-2 grid grid-cols-5 gap-2">
-                      {referenceImages.map((img, i) => (
-                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden glass border-0">
-                          <img src={img} alt="Ref" className="w-full h-full object-cover" />
-                          <Button size="icon" variant="ghost" className="absolute top-1 right-1 size-6 bg-black/50 hover:bg-black/70" onClick={() => removeImage(i)}>
-                            <X className="size-3" />
-                          </Button>
-                        </div>
-                      ))}
-                      {referenceImages.length < 10 && (
-                        <>
-                          <label className="aspect-square rounded-lg border-2 border-dashed border-muted flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition">
-                            <Upload className="size-5 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground mt-1">Upload</span>
-                            <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
-                          </label>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Or paste image URL..." className="glass border-0" />
-                      <Button size="icon" variant="ghost" onClick={addUrl}><Plus className="size-4" /></Button>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Sparkles className="size-4 text-primary" />
-              <span>{CREDITS_PER_IMAGE} credits per image</span>
-              {isAdmin && <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/30 text-xs">Admin</Badge>}
-            </div>
-            <Button
-              className="w-full btn-gradient text-white border-0 h-12"
-              disabled={isGenerating || !prompt.trim()}
-              onClick={handleGenerate}
-            >
-              {isGenerating ? <Loader2 className="animate-spin size-5" /> : <><Sparkles className="size-4 mr-2" /> Generate Image</>}
-            </Button>
-            {isGenerating && (
-              <div className="space-y-2">
-                <Progress value={45} className="h-2" />
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="animate-spin size-4" />
-                  <GeneratingStatus startTime={generateStartRef.current} />
-                </div>
-              </div>
-            )}
-            {generatedImages.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {generatedImages.map((img, i) => (
-                  <div key={i} className="group relative rounded-lg overflow-hidden glass border-0 cursor-pointer" onClick={() => setLightboxImage(img)}>
-                    <img src={img} alt="Generated" className="w-full aspect-square object-cover" loading="lazy" />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
-                      <Button size="icon" variant="ghost" className="text-white" onClick={(e) => { e.stopPropagation(); downloadGen(img); }}>
-                        <Download className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+    <div className="min-h-screen bg-background pt-14">
+      <ToolNavbar title="Image Generation" />
+      <div className="p-6 md:p-10 max-w-6xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <Link to="/" className="text-muted-foreground hover:text-foreground transition"><ArrowLeft className="size-5" /></Link>
+          <div className="size-10 rounded-xl btn-gradient grid place-items-center"><ImageIcon className="size-5 text-white" /></div>
+          <div>
+            <h1 className="font-display text-3xl font-bold">Image Generation</h1>
+            <p className="text-muted-foreground text-sm">Create stunning AI images from text prompts</p>
           </div>
-          <div className="space-y-4">
-            <h3 className="font-display font-semibold text-sm text-muted-foreground">Recent Generations</h3>
-            {generations.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                <ImageIcon className="size-8 mx-auto mb-2 opacity-50" />
-                No images generated yet.
+          <Badge variant="outline" className="ml-auto">{CREDITS_PER_IMAGE} credits</Badge>
+        </div>
+
+        <Card className="glass border-0 p-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="text">Text to Image</TabsTrigger>
+              <TabsTrigger value="reference">Reference to Image</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="text" className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center">
+                  <Label>Prompt</Label>
+                  <span className="text-xs text-muted-foreground">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
+                </div>
+                <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe your image... e.g., 'A serene mountain lake at sunset, golden hour lighting'" rows={4} className="mt-1 bg-muted/50 border-border resize-none" disabled={isGenerating} maxLength={MAX_PROMPT_LENGTH} />
               </div>
-            )}
-            <div className="space-y-3">
-              {generations.map((g) => (
-                <Card key={g.id} className="glass border-0 p-3 overflow-hidden">
-                  <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
-                    {g.result_url ? (
-                      <img src={g.result_url} alt="Generated" className="w-full h-full object-cover" loading="lazy" />
-                    ) : g.status === "processing" || g.status === "pending" ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="animate-spin size-5 text-primary" />
-                        <span className="text-xs text-muted-foreground">Processing...</span>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Image Size</Label>
+                  <Select value={selectedSize} onValueChange={setSelectedSize} disabled={isGenerating}>
+                    <SelectTrigger className="mt-1 bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent>{IMAGE_SIZES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Style</Label>
+                  <Select value={selectedStyle} onValueChange={setSelectedStyle} disabled={isGenerating}>
+                    <SelectTrigger className="mt-1 bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent>{STYLES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="reference" className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center">
+                  <Label>Prompt</Label>
+                  <span className="text-xs text-muted-foreground">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
+                </div>
+                <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe your image. The reference will guide AI style and composition." rows={4} className="mt-1 bg-muted/50 border-border resize-none" disabled={isGenerating} maxLength={MAX_PROMPT_LENGTH} />
+              </div>
+              <div>
+                <Label>Reference Images (up to 10)</Label>
+                <p className="text-xs text-muted-foreground mb-2">These images guide the AI style and composition</p>
+                <div className="p-4 border-2 border-dashed border-border rounded-lg bg-muted/30">
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {referenceImages.map((img, idx) => (
+                      <div key={idx} className="relative group">
+                        <img src={img} alt="Reference" className="w-20 h-20 object-cover rounded-lg border border-border" />
+                        <button onClick={() => removeImage(idx)} className="absolute -top-2 -right-2 size-5 bg-destructive text-white rounded-full opacity-0 group-hover:opacity-100 transition flex items-center justify-center"><X className="size-3" /></button>
                       </div>
-                    ) : (
-                      <ImageIcon className="size-6 text-muted-foreground" />
-                    )}
-                    {g.status === "done" && g.result_url && (
-                      <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition flex items-center justify-center gap-2">
-                        <Button size="icon" variant="ghost" className="text-white" onClick={() => downloadGen(g.result_url!)}><Download className="size-4" /></Button>
-                        <Button size="icon" variant="ghost" className="text-white" onClick={() => copyPrompt(g.prompt)}><Copy className="size-4" /></Button>
-                        <Button size="icon" variant="ghost" className="text-white" onClick={() => setLightboxImage(g.result_url!)}><ZoomIn className="size-4" /></Button>
-                      </div>
-                    )}
+                    ))}
                   </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground line-clamp-1">{g.prompt}</p>
-                    <div className="flex items-center gap-1">
-                      <Button size="icon" variant="ghost" className="size-6" onClick={() => saveFavorite(g.id)}>
-                        <Heart className={`size-3 ${g.is_favorite ? "fill-red-500 text-red-500" : ""}`} />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => deleteGen(g.id)}>
-                        <Trash2 className="size-3" />
+                  {referenceImages.length < 10 && (
+                    <div className="flex flex-wrap gap-3">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg cursor-pointer transition">
+                        <Upload className="size-4" /><span className="text-sm">Upload File</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileUpload} className="hidden" disabled={isGenerating} />
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input type="url" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Paste image URL..." className="bg-muted/50 border-border w-48" disabled={isGenerating} />
+                        <Button type="button" variant="outline" size="sm" onClick={addUrl} disabled={isGenerating || !urlInput.trim()}><Plus className="size-4" /></Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Image Size</Label>
+                  <Select value={selectedSize} onValueChange={setSelectedSize} disabled={isGenerating}>
+                    <SelectTrigger className="mt-1 bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent>{IMAGE_SIZES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Style</Label>
+                  <Select value={selectedStyle} onValueChange={setSelectedStyle} disabled={isGenerating}>
+                    <SelectTrigger className="mt-1 bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent>{STYLES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {isGenerating && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                <GeneratingStatus startTime={generateStartRef.current} />
+              </div>
+              <Progress value={undefined} className="h-2" />
+            </div>
+          )}
+
+          <Button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()} className="mt-6 btn-gradient text-white border-0">
+            {isGenerating ? <><Loader2 className="size-4 mr-2 animate-spin" /> Generating...</> : <><Sparkles className="size-4 mr-2" /> Generate ({CREDITS_PER_IMAGE} credits)</>}
+          </Button>
+        </Card>
+
+        {generatedImages.length > 0 && (
+          <div className="mt-10">
+            <h2 className="font-display text-xl font-semibold">Generated Images</h2>
+            <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 mt-4">
+              {generatedImages.map((url, idx) => (
+                <Card key={idx} className="glass border-0 overflow-hidden break-inside-avoid group">
+                  <div className="relative bg-muted">
+                    <img src={url} alt="Generated" className="w-full cursor-zoom-in" loading="lazy" onClick={() => setLightboxImage(url)} />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => setLightboxImage(url)}><ZoomIn className="size-4" /></Button>
+                      <Button size="sm" variant="secondary" asChild>
+                        <a href={url} download target="_blank" rel="noopener noreferrer"><Download className="size-4" /></a>
                       </Button>
                     </div>
                   </div>
@@ -405,13 +366,69 @@ function ImageToolPage() {
               ))}
             </div>
           </div>
+        )}
+
+        <div className="mt-10">
+          <h2 className="font-display text-xl font-semibold">Your Generations</h2>
+          {generations.length === 0 ? (
+            <Card className="glass border-0 p-12 text-center mt-4">
+              <ImageIcon className="size-12 mx-auto text-muted-foreground opacity-50" />
+              <p className="mt-4 text-muted-foreground">No images yet. Create your first one above!</p>
+            </Card>
+          ) : (
+            <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 mt-4">
+              {generations.map((gen) => (
+                <Card key={gen.id} className="glass border-0 overflow-hidden break-inside-avoid group">
+                  <div className="relative bg-muted">
+                    {gen.result_url ? (
+                      <img src={gen.result_url} alt={gen.prompt} className="w-full cursor-zoom-in" loading="lazy" onClick={() => setLightboxImage(gen.result_url)} />
+                    ) : gen.status === "processing" ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-2">
+                        <Loader2 className="size-8 animate-spin text-primary" />
+                        <span className="text-xs text-muted-foreground">Generating...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-16"><ImageIcon className="size-12 text-muted-foreground opacity-50" /></div>
+                    )}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => { setPrompt(gen.prompt); if (gen.settings?.style) setSelectedStyle(gen.settings.style as string); if (gen.settings?.image_size) setSelectedSize(gen.settings.image_size as string); toast.success("Prompt copied"); }}><Copy className="size-4" /></Button>
+                      {gen.result_url && <Button size="sm" variant="secondary" onClick={() => setLightboxImage(gen.result_url)}><ZoomIn className="size-4" /></Button>}
+                      {gen.result_url && (
+                        <Button size="sm" variant="secondary" asChild>
+                          <a href={gen.result_url} download target="_blank" rel="noopener noreferrer"><Download className="size-4" /></a>
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" onClick={() => toggleFavorite(gen.id, gen.is_favorite)}>
+                        <Heart className={`size-4 ${gen.is_favorite ? "fill-red-500 text-red-500" : ""}`} />
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteGeneration(gen.id)}><Trash2 className="size-4" /></Button>
+                    </div>
+                    {gen.is_favorite && <div className="absolute top-2 right-2"><Heart className="size-5 fill-red-500 text-red-500 drop-shadow" /></div>}
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm line-clamp-2">{gen.prompt}</p>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px]">{gen.settings?.style || "realistic"}</Badge>
+                      <span>{gen.credits_used} cr</span>
+                      <span className="ml-auto">{new Date(gen.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
-      </main>
-      {lightboxImage && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
-          <img src={lightboxImage} alt="Lightbox" className="max-w-full max-h-[90vh] rounded-lg object-contain" />
-        </div>
-      )}
+
+        {lightboxImage && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
+            <button className="absolute top-4 right-4 text-white/80 hover:text-white" onClick={() => setLightboxImage(null)}><X className="size-8" /></button>
+            <img src={lightboxImage} alt="Full size" className="max-w-full max-h-full object-contain" />
+            <a href={lightboxImage} download target="_blank" rel="noopener noreferrer" className="absolute bottom-4 right-4" onClick={(e) => e.stopPropagation()}>
+              <Button className="btn-gradient text-white border-0"><Download className="size-4 mr-2" /> Download</Button>
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
