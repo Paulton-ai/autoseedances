@@ -148,15 +148,6 @@ function ImageToolPage() {
     generateStartRef.current = Date.now();
     setGeneratedImages([]);
     try {
-      let creditResult: any = null;
-      if (!isAdmin) {
-        const { data, error: creditError } = await supabase.rpc("consume_credits", { _tool: "image", _amount: CREDITS_PER_IMAGE });
-        if (creditError || !data?.success) throw new Error(data?.error || creditError?.message || "Failed to deduct credits");
-        creditResult = data;
-      } else {
-        creditResult = { success: true, is_admin: true };
-      }
-
       const { data: genData, error: genError } = await supabase.functions.invoke("generate-image", {
         body: {
           prompt: prompt.trim(),

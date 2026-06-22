@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Coins, TrendingUp, TrendingDown, ArrowRight, Sparkles, ArrowUpRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Coins, TrendingUp, TrendingDown, ArrowRight, Sparkles, ArrowUpRight, CreditCard, Zap, ShoppingCart } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/dashboard/credits")({
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/dashboard/credits")({
   }),
 });
 
-type LedgerEntry = Tables<"credit_ledger">;
+type Transaction = Tables<"credits_transactions">;
 type Wallet = Tables<"credit_wallets">;
 
 const CREDIT_COSTS = {
@@ -29,20 +30,52 @@ const CREDIT_COSTS = {
   animation: 20,
 };
 
+const REASON_ICONS: Record<string, React.ReactNode> = {
+  "Signup Bonus": <Sparkles className="size-3" />,
+  "Generation: image": <Zap className="size-3" />,
+  "Generation: video": <Zap className="size-3" />,
+  "Subscription": <ShoppingCart className="size-3" />,
+  "Admin Credit": <CreditCard className="size-3" />,
+  "Admin Deduction": <CreditCard className="size-3" />,
+  "Refund": <TrendingUp className="size-3" />,
+  "Referral": <Sparkles className="size-3" />,
+  "Daily Bonus": <Sparkles className="size-3" />,
+};
+
+function getTransactionIcon(reason: string) {
+  return REASON_ICONS[reason] || <TrendingUp className="size-3" />;
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatTime(date: string) {
+  return new Date(date).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function CreditsPage() {
   const { user } = useSession();
   const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
     async function fetchData() {
-      const [walletRes, ledgerRes] = await Promise.all([
+      const [walletRes, txRes] = await Promise.all([
         supabase.from("credit_wallets").select("*").eq("user_id", user.id).maybeSingle(),
         supabase
-          .from("credit_ledger")
+          .from("credits_transactions")
           .select("*")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
@@ -50,12 +83,48 @@ function CreditsPage() {
       ]);
 
       setWallet(walletRes.data as Wallet | null);
-      setLedger((ledgerRes.data as LedgerEntry[]) ?? []);
+      setTransactions((txRes.data as Transaction[]) ?? []);
       setLoading(false);
     }
 
     fetchData();
   }, [user]);
+
+  // Enable realtime updates
+  useEffect(() => {
+    if (!user || realtimeEnabled) return;
+
+    const channel = supabase
+      .channel("credits_transactions_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "credits_transactions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newTx = payload.new as Transaction;
+          setTransactions((prev) => [newTx, ...prev]);
+          // Update wallet balance
+          setWallet((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              balance: newTx.balance_after,
+              updated_at: new Date().toISOString(),
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    setRealtimeEnabled(true);
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user, realtimeEnabled]);
 
   const usedCredits = wallet ? wallet.monthly_grant - wallet.balance : 0;
   const usagePercent = wallet ? (usedCredits / wallet.monthly_grant) * 100 : 0;
@@ -66,8 +135,10 @@ function CreditsPage() {
       <p className="text-muted-foreground mt-1">Manage your AI generation credits</p>
 
       {loading ? (
-        <div className="mt-8 grid place-items-center">
-          <Sparkles className="size-8 animate-pulse text-primary" />
+        <div className="mt-8 space-y-4">
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full" />
         </div>
       ) : (
         <>
@@ -129,50 +200,106 @@ function CreditsPage() {
           <Card className="glass border-0 p-6 mt-6">
             <h2 className="font-display font-semibold">Transaction history</h2>
 
-            {ledger.length === 0 ? (
-              <div className="mt-6 text-center text-muted-foreground text-sm">
-                No transactions yet. Generate content to see your history.
+            {transactions.length === 0 ? (
+              <div className="mt-6 text-center text-muted-foreground text-sm py-8">
+                <Coins className="size-10 mx-auto mb-3 opacity-30" />
+                <p>No transactions yet.</p>
+                <p className="text-xs mt-1">Generate content or top up your credits to see your history.</p>
               </div>
             ) : (
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 font-medium text-muted-foreground">Date</th>
-                      <th className="text-left py-2 font-medium text-muted-foreground">Tool</th>
-                      <th className="text-left py-2 font-medium text-muted-foreground">Reason</th>
-                      <th className="text-right py-2 font-medium text-muted-foreground">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledger.map((entry) => (
-                      <tr key={entry.id} className="border-b border-border/50">
-                        <td className="py-3 text-muted-foreground">
-                          {new Date(entry.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="py-3">
-                          {entry.tool && (
-                            <Badge variant="outline" className="border-border capitalize">
-                              {entry.tool}
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="py-3">{entry.reason}</td>
-                        <td className={`py-3 text-right font-medium ${entry.amount > 0 ? "text-green-500" : "text-red-500"}`}>
-                          {entry.amount > 0 ? (
-                            <span className="flex items-center justify-end gap-1">
-                              <TrendingUp className="size-3" />+{entry.amount}
-                            </span>
-                          ) : (
-                            <span className="flex items-center justify-end gap-1">
-                              <TrendingDown className="size-3" />{entry.amount}
-                            </span>
-                          )}
-                        </td>
+                <div className="hidden sm:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Type</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Reason</th>
+                        <th className="text-right py-2 font-medium text-muted-foreground">Amount</th>
+                        <th className="text-right py-2 font-medium text-muted-foreground">Balance</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {transactions.map((entry) => (
+                        <tr key={entry.id} className="border-b border-border/50">
+                          <td className="py-3 text-muted-foreground">
+                            <div className="font-medium">{formatDate(entry.created_at)}</div>
+                            <div className="text-xs">{formatTime(entry.created_at)}</div>
+                          </td>
+                          <td className="py-3">
+                            <Badge
+                              variant="outline"
+                              className={`border-border ${
+                                entry.transaction_type === "credit"
+                                  ? "bg-green-500/10 text-green-500 border-green-500/30"
+                                  : "bg-red-500/10 text-red-500 border-red-500/30"
+                              }`}
+                            >
+                              <span className="flex items-center gap-1">
+                                {getTransactionIcon(entry.reason)}
+                                {entry.transaction_type === "credit" ? "Credit" : "Debit"}
+                              </span>
+                            </Badge>
+                          </td>
+                          <td className="py-3 text-foreground">{entry.reason}</td>
+                          <td className={`py-3 text-right font-medium ${
+                            entry.transaction_type === "credit" ? "text-green-500" : "text-red-500"
+                          }`}>
+                            {entry.transaction_type === "credit" ? (
+                              <span className="flex items-center justify-end gap-1">
+                                <TrendingUp className="size-3" />+{entry.amount}
+                              </span>
+                            ) : (
+                              <span className="flex items-center justify-end gap-1">
+                                <TrendingDown className="size-3" />-{entry.amount}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 text-right font-medium text-muted-foreground">
+                            {entry.balance_after}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile view */}
+                <div className="sm:hidden space-y-3">
+                  {transactions.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-lg border border-border bg-muted/30 p-4 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-muted-foreground">
+                          {formatDate(entry.created_at)} {formatTime(entry.created_at)}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`border-border text-xs ${
+                            entry.transaction_type === "credit"
+                              ? "bg-green-500/10 text-green-500 border-green-500/30"
+                              : "bg-red-500/10 text-red-500 border-red-500/30"
+                          }`}
+                        >
+                          {entry.transaction_type === "credit" ? "Credit" : "Debit"}
+                        </Badge>
+                      </div>
+                      <div className="text-sm font-medium">{entry.reason}</div>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-medium ${
+                          entry.transaction_type === "credit" ? "text-green-500" : "text-red-500"
+                        }`}>
+                          {entry.transaction_type === "credit" ? "+" : "-"}{entry.amount}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Balance: {entry.balance_after}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </Card>

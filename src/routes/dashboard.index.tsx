@@ -115,7 +115,7 @@ function Overview() {
         .eq("user_id", user.id)
         .eq("tool_type", "video")
         .eq("status", "done"),
-      supabase.from("credit_ledger").select("amount").eq("user_id", user.id).lt("amount", 0),
+      supabase.from("credits_transactions").select("amount").eq("user_id", user.id).eq("transaction_type", "debit"),
     ])
       .then(([imgRes, vidRes, creditRes]) => {
         const creditsUsed =
