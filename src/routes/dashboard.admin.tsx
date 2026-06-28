@@ -257,15 +257,29 @@ function Admin() {
     loadUsers();
   }
 
-  async function handlePlanChange() {
+  // ── Admin plan change (with credits update) ───────────────────────────────────
+  async function handleAdminPlanChange() {
     if (!planModal) return;
-    const [res] = await Promise.allSettled([
-      supabase.from("subscriptions").upsert({ user_id: planModal.id, plan: newPlan as any, status: "active" }, { onConflict: "user_id" }),
-    ]);
-    if (res.status === "rejected") { toast.error("Failed to update plan"); return; }
-    toast.success("Plan updated");
-    setPlanModal(null);
-    loadUsers();
+
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-update-plan", {
+        body: {
+          user_id: planModal.id,
+          new_plan_name: newPlan,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error(error?.message || data?.error || "Failed to update plan");
+        return;
+      }
+
+      toast.success(`Plan updated to ${data.new_plan}. Credits set to ${data.monthly_credits}.`);
+      setPlanModal(null);
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update plan");
+    }
   }
 
   // ── Plan editor ───────────────────────────────────────────────────────────
@@ -806,10 +820,13 @@ function Admin() {
                 <SelectItem value="business">Business (Pro)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-2">
+              Changing the plan will also update the user's credit balance to match the new plan's monthly credits.
+            </p>
           </div>
           <DialogFooter className="mt-4 gap-2">
             <Button variant="outline" onClick={() => setPlanModal(null)}>Cancel</Button>
-            <Button className="btn-gradient text-white border-0" onClick={handlePlanChange}>Save</Button>
+            <Button className="btn-gradient text-white border-0" onClick={handleAdminPlanChange}>Update Plan & Credits</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
